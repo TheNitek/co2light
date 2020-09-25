@@ -109,9 +109,9 @@ bool sendStatus() {
   http.addHeader("Authorization", apiKey);
   http.addHeader("Content-Type", "application/json");
 
-  const char* payloadTpl = "{\"co2\": {\"value\": %d}, \"temperature\": {\"value\": %d}}";
-  char payload[100] = "";
-  snprintf(payload, sizeof(payload), payloadTpl, co2.co2_ppm, co2.temperature);
+  const char* payloadTpl = "{\"co2\": {\"value\": %d}, \"temperature\": {\"value\": %d}, \"uptime\": {\"value\": %lu}}";
+  char payload[200] = "";
+  snprintf(payload, sizeof(payload), payloadTpl, co2.co2_ppm, co2.temperature, millis());
   int httpResponseCode = http.PUT(payload);
 
   if(httpResponseCode==HTTP_CODE_NO_CONTENT) {
@@ -205,7 +205,9 @@ void loop() {
   Serial.print(" ");
   Serial.print(co2.co2_ppm);
   Serial.print(" ");
-  Serial.println(co2.temperature);
+  Serial.print(co2.temperature);
+  Serial.print(" ");
+  Serial.println(millis());
 
   if(isQuietTime()) {
     if(currentColor != DARK) {
@@ -222,7 +224,7 @@ void loop() {
         ledcWrite(PWM_CHANNEL_RED, 0);
         digitalWrite(GREEN_PIN, HIGH);
         currentColor = GREEN;
-        Serial.print("green");
+        Serial.println("green");
       }
     }else if(co2.co2_ppm < 1200) {
       if(currentColor != YELLOW) {
@@ -230,7 +232,7 @@ void loop() {
         ledcWrite(PWM_CHANNEL_RED, 0);
         digitalWrite(YELLOW_PIN, HIGH);
         currentColor = YELLOW;
-        Serial.print("yellow");
+        Serial.println("yellow");
       }
     }else if(co2.co2_ppm < 2000) {
       if(currentColor != RED) {
@@ -238,7 +240,7 @@ void loop() {
         digitalWrite(YELLOW_PIN, LOW);
         ledcWrite(PWM_CHANNEL_RED, 32768);
         currentColor = RED;
-        Serial.print("red");
+        Serial.println("red");
       }
     } else {
       if(currentColor != RED_BLINK) {
@@ -246,7 +248,7 @@ void loop() {
         digitalWrite(YELLOW_PIN, LOW);
         ledcWrite(PWM_CHANNEL_RED, 32768/2);
         currentColor = RED_BLINK;
-        Serial.print("red blink");
+        Serial.println("red blink");
       }
     }
   }
