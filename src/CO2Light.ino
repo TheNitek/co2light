@@ -96,7 +96,7 @@ void setupOTA() {
 }
 
 bool sendStatus() {
-  if(co2.state < 0) {
+  if(co2.state < 0 || co2.temperature < -20) {
     return false;
   }
 
@@ -160,7 +160,7 @@ void setup() {
 
   mhz19 = MHZ19();
   mhz19.begin();
-  mhz19.setAutoCalibration(true);
+  mhz19.setAutoCalibration(false);
   co2 = mhz19.getMeasurement();
 
   btStop();
@@ -197,7 +197,7 @@ void loop() {
 
   if((lastUpdate == 0) || (abs(millis()-lastUpdate) > ((currentColor == DARK)?REMOTE_UPDATE_INTERVAL:UPDATE_INTERVAL))) {
     co2 = mhz19.getMeasurement();
-    if(co2.state >= 0) {
+    if(co2.state >= 0 && co2.temperature >= -20) {
       lastUpdate = millis();
     }
   }
