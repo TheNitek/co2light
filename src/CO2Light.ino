@@ -23,9 +23,6 @@ measurement_t co2;
 const char* apiUrl=API_URL;
 const char* apiKey=API_KEY;
 
-unsigned long lastUpdate = 0;
-#define UPDATE_INTERVAL 15*1000
-
 unsigned long lastRemoteUpdate = 0;
 #define REMOTE_UPDATE_INTERVAL 1*60*1000
 
@@ -111,7 +108,8 @@ bool sendStatus() {
 
   const char* payloadTpl = "{\"co2\": {\"value\": %d}, \"temperature\": {\"value\": %d}, \"uptime\": {\"value\": %lu}}";
   char payload[200] = "";
-  snprintf(payload, sizeof(payload), payloadTpl, co2.co2_ppm, co2.temperature, millis());
+  unsigned long uptime = millis() / 1000;
+  snprintf(payload, sizeof(payload), payloadTpl, co2.co2_ppm, co2.temperature, uptime);
   int httpResponseCode = http.PUT(payload);
 
   if(httpResponseCode==HTTP_CODE_NO_CONTENT) {
@@ -160,7 +158,7 @@ void setup() {
 
   mhz19 = MHZ19();
   mhz19.begin();
-  mhz19.setAutoCalibration(false);
+  mhz19.setAutoCalibration(true);
   co2 = mhz19.getMeasurement();
 
   btStop();
@@ -176,7 +174,7 @@ void setup() {
   setupOTA();
 
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
-      String info = String(co2.co2_ppm) + "ppm\n" + String(co2.temperature) + "C\nUnixtime: " + time(nullptr) + "\nLast Update: " + lastUpdate;
+      String info = String(co2.co2_ppm) + "ppm\n" + String(co2.temperature) + "C\nUnixtime: " + time(nullptr);
       request->send(200, "text/plain", info);
   });
 
@@ -195,12 +193,7 @@ void setup() {
 
 void loop() {
 
-  if((lastUpdate == 0) || (abs(millis()-lastUpdate) > ((currentColor == DARK)?REMOTE_UPDATE_INTERVAL:UPDATE_INTERVAL))) {
-    co2 = mhz19.getMeasurement();
-    if(co2.state >= 0 && co2.temperature >= -20) {
-      lastUpdate = millis();
-    }
-  }
+  co2 = mhz19.getMeasurement();
 
   Serial.print(" ");
   Serial.print(co2.co2_ppm);
