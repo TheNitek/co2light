@@ -6,7 +6,7 @@
 #include <WiFiManager.h>
 #include <ESPAsyncWebServer.h>
 #include <HTTPClient.h>
-#include <MHZ19.h>
+#include "MHZ19.h"
 #include <ESP32Ping.h>
 #include "config.h"
 
@@ -18,7 +18,10 @@ MHZ19 mhz19;
 
 AsyncWebServer server(80);
 
-measurement_t co2;
+struct {
+  int8_t temperature;
+  int co2;
+} measurement;
 
 const char* apiUrl=API_URL;
 const char* apiKey=API_KEY;
@@ -93,7 +96,7 @@ void setupOTA() {
 }
 
 bool sendStatus() {
-  if(co2.state < 0 || co2.temperature < -20) {
+  if(mhz19.errorCode != RESULT_OK || measurement.co2 >= 5000 || measurement.temperature < -20 || offline) {
     return false;
   }
 
@@ -109,7 +112,7 @@ bool sendStatus() {
   const char* payloadTpl = "{\"co2\": {\"value\": %d}, \"temperature\": {\"value\": %d}, \"uptime\": {\"value\": %lu}}";
   char payload[200] = "";
   unsigned long uptime = millis() / 1000;
-  snprintf(payload, sizeof(payload), payloadTpl, co2.co2_ppm, co2.temperature, uptime);
+  snprintf(payload, sizeof(payload), payloadTpl, measurement.co2, measurement.temperature, uptime);
   int httpResponseCode = http.PUT(payload);
 
   if(httpResponseCode==HTTP_CODE_NO_CONTENT) {
@@ -156,10 +159,11 @@ void setup() {
   ledcAttachPin(RED_PIN, PWM_CHANNEL_RED);
   ledcWrite(PWM_CHANNEL_RED, 0);
 
-  mhz19 = MHZ19();
-  mhz19.begin();
-  mhz19.setAutoCalibration(true);
-  co2 = mhz19.getMeasurement();
+  Serial2.begin(9600);  
+
+  mhz19.begin(Serial2);
+  mhz19.autoCalibration(true);
+  mhz19.setRange(5000);
 
   btStop();
 
@@ -174,13 +178,15 @@ void setup() {
   setupOTA();
 
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
-      String info = String(co2.co2_ppm) + "ppm\n" + String(co2.temperature) + "C\nUnixtime: " + time(nullptr);
+      String info = String(measurement.co2) + "ppm\n" + String(measurement.temperature) + "C\nUnixtime: " + time(nullptr);
       request->send(200, "text/plain", info);
   });
 
   server.begin();
 
   MDNS.addService("_http", "_tcp", 80);
+
+  Serial.printf("Range: %d, ABC: %d\n", mhz19.getRange(), mhz19.getABC());
 
   xTaskCreate(
       reconnectTask,   /* Task function. */
@@ -193,12 +199,13 @@ void setup() {
 
 void loop() {
 
-  co2 = mhz19.getMeasurement();
+  measurement.co2 = mhz19.getCO2();
+  measurement.temperature = mhz19.getTemperature();
 
   Serial.print(" ");
-  Serial.print(co2.co2_ppm);
+  Serial.print(measurement.co2);
   Serial.print(" ");
-  Serial.print(co2.temperature);
+  Serial.print(measurement.temperature);
   Serial.print(" ");
   Serial.println(millis());
 
@@ -211,7 +218,7 @@ void loop() {
       Serial.println("dark");
     }
   } else {
-    if(co2.co2_ppm < 800) {
+    if(measurement.co2 < 800) {
       if(currentColor != GREEN) {
         digitalWrite(YELLOW_PIN, LOW);
         ledcWrite(PWM_CHANNEL_RED, 0);
@@ -219,7 +226,7 @@ void loop() {
         currentColor = GREEN;
         Serial.println("green");
       }
-    }else if(co2.co2_ppm < 1200) {
+    }else if(measurement.co2 < 1200) {
       if(currentColor != YELLOW) {
         digitalWrite(GREEN_PIN, LOW);
         ledcWrite(PWM_CHANNEL_RED, 0);
@@ -227,7 +234,7 @@ void loop() {
         currentColor = YELLOW;
         Serial.println("yellow");
       }
-    }else if(co2.co2_ppm < 2000) {
+    }else if(measurement.co2 < 2000) {
       if(currentColor != RED) {
         digitalWrite(GREEN_PIN, LOW);
         digitalWrite(YELLOW_PIN, LOW);
@@ -272,12 +279,12 @@ void reconnectTask(void *parameter) {
         Serial.println("Connecting to WiFi..");
       }
 
-      if ((WiFi.status() != WL_CONNECTED)) {
-        Serial.println("Still not connected. Resetting");
-        ESP.restart();
+      if ((WiFi.status() == WL_CONNECTED)) {
+        offline = false;
+      } else {
+        Serial.println("Still not connected.");
       }
 
-      offline = false;
     }
     delay(60 * 1000);
   }
