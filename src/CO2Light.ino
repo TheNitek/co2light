@@ -163,7 +163,7 @@ void setup() {
 
   mhz19.begin(Serial2);
   mhz19.autoCalibration(true);
-  mhz19.setRange(5000);
+  //mhz19.setRange(5000);
 
   btStop();
 
@@ -218,7 +218,7 @@ void loop() {
       Serial.println("dark");
     }
   } else {
-    if(measurement.co2 < 800) {
+    if(measurement.co2 < 600) {
       if(currentColor != GREEN) {
         digitalWrite(YELLOW_PIN, LOW);
         ledcWrite(PWM_CHANNEL_RED, 0);
@@ -226,7 +226,7 @@ void loop() {
         currentColor = GREEN;
         Serial.println("green");
       }
-    }else if(measurement.co2 < 1200) {
+    }else if(measurement.co2 < 1000) {
       if(currentColor != YELLOW) {
         digitalWrite(GREEN_PIN, LOW);
         ledcWrite(PWM_CHANNEL_RED, 0);
@@ -234,7 +234,7 @@ void loop() {
         currentColor = YELLOW;
         Serial.println("yellow");
       }
-    }else if(measurement.co2 < 2000) {
+    }else if(measurement.co2 < 1500) {
       if(currentColor != RED) {
         digitalWrite(GREEN_PIN, LOW);
         digitalWrite(YELLOW_PIN, LOW);
